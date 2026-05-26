@@ -1,0 +1,1 @@
+"""Lenormand group bot package."""

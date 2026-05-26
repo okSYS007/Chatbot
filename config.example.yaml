@@ -1,0 +1,29 @@
+telegram:
+  # Put the real token in .env as TELEGRAM_BOT_TOKEN.
+  chat_id: 0
+
+admins:
+  user_ids: []
+
+welcome:
+  enabled: true
+  text: "Привет, {name}! Добро пожаловать в группу."
+
+reputation:
+  enabled: true
+  positive_reactions:
+    - "👍"
+    - "❤️"
+    - "🔥"
+  cooldown_days: 7
+  active_min_messages: 20
+  active_min_days: 14
+  regular_weight: 1
+  moderator_weight: 2
+  moderators: []
+
+storage:
+  path: "data/state.json"
+
+logging:
+  path: "logs/bot.log"

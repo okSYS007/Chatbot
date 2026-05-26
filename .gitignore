@@ -1,0 +1,11 @@
+.env
+config.yaml
+__pycache__/
+*.pyc
+.pytest_cache/
+data/state.json
+data/state.backup.json
+logs/*.log
+build/
+dist/
+release/
