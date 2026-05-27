@@ -15,7 +15,7 @@ from telegram.ext import (
 )
 
 from app.config import load_config
-from app.handlers.admin import health, rep, set_welcome, test_welcome, top_rep
+from app.handlers.admin import health, rep, reset_users, set_welcome, test_welcome, top_rep
 from app.handlers.common import remember_update
 from app.handlers.members import handle_chat_member
 from app.handlers.messages import handle_message
@@ -59,6 +59,7 @@ def build_application():
     application.add_handler(CommandHandler("rep", rep))
     application.add_handler(CommandHandler("test_welcome", test_welcome))
     application.add_handler(CommandHandler("set_welcome", set_welcome))
+    application.add_handler(CommandHandler("reset_users", reset_users))
     application.add_handler(ChatMemberHandler(handle_chat_member, ChatMemberHandler.CHAT_MEMBER))
     application.add_handler(MessageReactionHandler(handle_reaction))
     application.add_handler(MessageHandler(filters.ALL, handle_message))

@@ -85,6 +85,7 @@ def _write_config(chat_id: int, admin_id: int, welcome_text: str) -> None:
         },
         "reputation": {
             "enabled": True,
+            "admin_only": True,
             "positive_reactions": ["👍", "❤️", "🔥"],
             "cooldown_days": 7,
             "active_min_messages": 20,

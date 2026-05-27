@@ -17,10 +17,10 @@ async def health(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.effective_message.reply_text(
         "\n".join(
             [
-                "Бот работает.",
-                f"Пользователей в JSON: {len(state.get('users', {}))}",
-                f"Последний update_id: {meta.get('last_update_id')}",
-                f"Последний update: {meta.get('last_seen_update_at')}",
+                "Bot is running.",
+                f"Users in JSON: {len(state.get('users', {}))}",
+                f"Last update_id: {meta.get('last_update_id')}",
+                f"Last update: {meta.get('last_seen_update_at')}",
             ]
         )
     )
@@ -32,10 +32,10 @@ async def top_rep(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     users.sort(key=lambda item: int(item.get("reputation") or 0), reverse=True)
     top = users[:10]
     if not top:
-        await update.effective_message.reply_text("Пока нет данных по репутации.")
+        await update.effective_message.reply_text("No reputation data yet.")
         return
 
-    lines = ["Топ репутации:"]
+    lines = ["Top reputation:"]
     for index, user in enumerate(top, start=1):
         name = user.get("display_name") or user.get("username") or user.get("user_id")
         lines.append(f"{index}. {name}: {user.get('reputation', 0)}")
@@ -55,21 +55,21 @@ async def rep(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         target_id = update.effective_user.id
 
     if not target_id:
-        await update.effective_message.reply_text("Укажи user_id: /rep 123456789")
+        await update.effective_message.reply_text("Use: /rep 123456789")
         return
 
     user = storage.get_user(target_id)
     if not user:
-        await update.effective_message.reply_text("Пока нет данных по этому пользователю.")
+        await update.effective_message.reply_text("No data for this user yet.")
         return
 
     await update.effective_message.reply_text(
         "\n".join(
             [
-                f"Пользователь: {user.get('display_name') or user.get('username') or target_id}",
-                f"Репутация: {user.get('reputation', 0)}",
-                f"Сообщений: {user.get('message_count', 0)}",
-                f"Засчитанных лайков: {user.get('likes_received', 0)}",
+                f"User: {user.get('display_name') or user.get('username') or target_id}",
+                f"Reputation: {user.get('reputation', 0)}",
+                f"Messages: {user.get('message_count', 0)}",
+                f"Counted likes: {user.get('likes_received', 0)}",
             ]
         )
     )
@@ -93,10 +93,25 @@ async def set_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     text = " ".join(context.args).strip()
     if not text:
         await update.effective_message.reply_text(
-            "Использование: /set_welcome Привет, {name}! Добро пожаловать."
+            "Use: /set_welcome Hello, {name}! Welcome."
         )
         return
 
     storage = context.application.bot_data["storage"]
     storage.set_setting("welcome_text", text)
-    await update.effective_message.reply_text("Текст приветствия обновлен.")
+    await update.effective_message.reply_text("Welcome text updated.")
+
+
+async def reset_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update, context):
+        return
+
+    if not context.args or context.args[0] != "CONFIRM":
+        await update.effective_message.reply_text(
+            "This clears users and reputation only. To confirm: /reset_users CONFIRM"
+        )
+        return
+
+    storage = context.application.bot_data["storage"]
+    storage.reset_user_data()
+    await update.effective_message.reply_text("Users and reputation data cleared.")

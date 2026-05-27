@@ -130,6 +130,15 @@ class JsonStorage:
         self.state.setdefault("settings", {})[key] = value
         self.save()
 
+    def reset_user_data(self) -> None:
+        self.state["users"] = {}
+        self.state["rep_cooldowns"] = {}
+        self.state["counted_reactions"] = {}
+        self.state["message_authors"] = {}
+        self.state["pending_reactions"] = []
+        self.state["rep_events"] = []
+        self.save()
+
     def record_reputation(
         self,
         reactor_id: int,

@@ -29,6 +29,7 @@ class WelcomeConfig:
 @dataclass(frozen=True)
 class ReputationConfig:
     enabled: bool
+    admin_only: bool
     positive_reactions: set[str]
     cooldown_days: int
     active_min_messages: int
@@ -94,6 +95,7 @@ def load_config(path: str = "config.yaml") -> AppConfig:
         ),
         reputation=ReputationConfig(
             enabled=bool(rep_raw.get("enabled", True)),
+            admin_only=bool(rep_raw.get("admin_only", True)),
             positive_reactions=set(rep_raw.get("positive_reactions", ["👍", "❤️", "🔥"])),
             cooldown_days=int(rep_raw.get("cooldown_days", 7)),
             active_min_messages=int(rep_raw.get("active_min_messages", 20)),

@@ -11,6 +11,8 @@ welcome:
 
 reputation:
   enabled: true
+  # MVP mode: only admin/moderator reactions increase reputation.
+  admin_only: true
   positive_reactions:
     - "👍"
     - "❤️"

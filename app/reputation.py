@@ -40,6 +40,7 @@ def is_active(user: dict[str, Any] | None, config: ReputationConfig, now: dateti
 def decide_reputation(
     state: dict[str, Any],
     config: ReputationConfig,
+    trusted_reactor_ids: set[int],
     reactor_id: int,
     author_id: int,
     reaction: str,
@@ -66,8 +67,11 @@ def decide_reputation(
     if last_pair_at and now - last_pair_at < timedelta(days=config.cooldown_days):
         return ReputationDecision(False, reason="cooldown")
 
-    if reactor_id in config.moderators or (reactor and reactor.get("is_moderator")):
+    if reactor_id in trusted_reactor_ids or reactor_id in config.moderators or (reactor and reactor.get("is_moderator")):
         return ReputationDecision(True, weight=config.moderator_weight, reason="moderator")
+
+    if config.admin_only:
+        return ReputationDecision(False, reason="not_admin_reaction")
 
     if is_active(reactor, config, now):
         return ReputationDecision(True, weight=config.regular_weight, reason="active_user")

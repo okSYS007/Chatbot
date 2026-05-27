@@ -48,6 +48,7 @@ async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         decision = decide_reputation(
             storage.snapshot(),
             config.reputation,
+            trusted_reactor_ids=config.admins.user_ids | config.reputation.moderators,
             reactor_id=reactor.id,
             author_id=int(author_id),
             reaction=reaction,
