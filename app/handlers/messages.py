@@ -11,6 +11,20 @@ def message_key(chat_id: int, message_id: int) -> str:
     return f"{chat_id}:{message_id}"
 
 
+def is_reputation_query(text: str | None) -> bool:
+    return bool(text and text.strip().lower() in {"!rep", "!reputation"})
+
+
+async def reply_with_reputation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.message or not update.effective_user:
+        return
+
+    storage = context.application.bot_data["storage"]
+    user = storage.get_user(update.effective_user.id)
+    reputation = int(user.get("reputation") or 0) if user else 0
+    await update.message.reply_text(f"Your reputation: {reputation}")
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not is_target_chat(update, context) or not update.message:
         return
@@ -32,3 +46,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             message.from_user,
             message_key=message_key(message.chat.id, message.message_id),
         )
+
+    if is_reputation_query(message.text):
+        await reply_with_reputation(update, context)

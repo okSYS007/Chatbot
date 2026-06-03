@@ -37,6 +37,13 @@ def is_active(user: dict[str, Any] | None, config: ReputationConfig, now: dateti
     return False
 
 
+def reputation_weight(author: dict[str, Any] | None, config: ReputationConfig) -> int:
+    weight = config.points_per_admin_reaction
+    if config.subscription_bonus_enabled and author and author.get("subscription_active"):
+        weight *= config.subscription_multiplier
+    return weight
+
+
 def decide_reputation(
     state: dict[str, Any],
     config: ReputationConfig,
@@ -64,11 +71,11 @@ def decide_reputation(
     pair_key = f"{reactor_id}:{author_id}"
     now = datetime.now(UTC)
     last_pair_at = parse_utc(state.get("rep_cooldowns", {}).get(pair_key))
-    if last_pair_at and now - last_pair_at < timedelta(days=config.cooldown_days):
+    if config.cooldown_days > 0 and last_pair_at and now - last_pair_at < timedelta(days=config.cooldown_days):
         return ReputationDecision(False, reason="cooldown")
 
     if reactor_id in trusted_reactor_ids or reactor_id in config.moderators or (reactor and reactor.get("is_moderator")):
-        return ReputationDecision(True, weight=config.moderator_weight, reason="moderator")
+        return ReputationDecision(True, weight=reputation_weight(author, config), reason="admin_reaction")
 
     if config.admin_only:
         return ReputationDecision(False, reason="not_admin_reaction")

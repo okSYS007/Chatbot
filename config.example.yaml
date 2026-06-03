@@ -13,15 +13,19 @@ reputation:
   enabled: true
   # MVP mode: only admin/moderator reactions increase reputation.
   admin_only: true
+  points_per_admin_reaction: 1
+  # Reserved for future paid subscription logic.
+  subscription_bonus_enabled: false
+  subscription_multiplier: 2
   positive_reactions:
     - "👍"
     - "❤️"
     - "🔥"
-  cooldown_days: 7
+  cooldown_days: 0
   active_min_messages: 20
   active_min_days: 14
   regular_weight: 1
-  moderator_weight: 2
+  moderator_weight: 1
   moderators: []
 
 storage:

@@ -49,7 +49,6 @@ copy /y config.example.yaml release\LenormandGroupBot\config.example.yaml
 copy /y .env.example release\LenormandGroupBot\.env.example
 copy /y README.md release\LenormandGroupBot\README.md
 copy /y INSTRUCTION_RU.txt release\LenormandGroupBot\INSTRUCTION_RU.txt
-copy /y setup_bot.bat release\LenormandGroupBot\setup_bot.bat
 copy /y start_bot.bat release\LenormandGroupBot\start_bot.bat
 copy /y stop_bot.bat release\LenormandGroupBot\stop_bot.bat
 if not exist release\LenormandGroupBot\data mkdir release\LenormandGroupBot\data

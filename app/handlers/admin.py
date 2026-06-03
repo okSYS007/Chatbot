@@ -115,3 +115,40 @@ async def reset_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     storage = context.application.bot_data["storage"]
     storage.reset_user_data()
     await update.effective_message.reply_text("Users and reputation data cleared.")
+
+
+async def spend_rep(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update, context):
+        return
+
+    if not update.effective_user:
+        return
+
+    if len(context.args) < 2:
+        await update.effective_message.reply_text("Use: /spend_rep user_id amount [reason]")
+        return
+
+    try:
+        user_id = int(context.args[0])
+        amount = int(context.args[1])
+    except ValueError:
+        await update.effective_message.reply_text("user_id and amount must be numbers.")
+        return
+
+    reason = " ".join(context.args[2:]).strip() or "crystal_exchange"
+    storage = context.application.bot_data["storage"]
+    ok, balance = storage.spend_reputation(
+        user_id=user_id,
+        amount=amount,
+        admin_id=update.effective_user.id,
+        reason=reason,
+    )
+    if not ok:
+        await update.effective_message.reply_text(
+            f"Cannot spend reputation. Current balance: {balance}"
+        )
+        return
+
+    await update.effective_message.reply_text(
+        f"Spent {amount} reputation points. New balance: {balance}"
+    )

@@ -43,7 +43,10 @@ async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     for reaction in added:
-        reaction_key = f"{event.chat.id}:{event.message_id}:{reactor.id}:{reaction}"
+        if reaction not in config.reputation.positive_reactions:
+            continue
+
+        reaction_key = f"{event.chat.id}:{event.message_id}:{reactor.id}"
         pair_key = f"{reactor.id}:{author_id}"
         decision = decide_reputation(
             storage.snapshot(),

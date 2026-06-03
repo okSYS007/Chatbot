@@ -31,6 +31,9 @@ class ReputationConfig:
     enabled: bool
     admin_only: bool
     positive_reactions: set[str]
+    points_per_admin_reaction: int
+    subscription_bonus_enabled: bool
+    subscription_multiplier: int
     cooldown_days: int
     active_min_messages: int
     active_min_days: int
@@ -97,6 +100,9 @@ def load_config(path: str = "config.yaml") -> AppConfig:
             enabled=bool(rep_raw.get("enabled", True)),
             admin_only=bool(rep_raw.get("admin_only", True)),
             positive_reactions=set(rep_raw.get("positive_reactions", ["👍", "❤️", "🔥"])),
+            points_per_admin_reaction=int(rep_raw.get("points_per_admin_reaction", 1)),
+            subscription_bonus_enabled=bool(rep_raw.get("subscription_bonus_enabled", False)),
+            subscription_multiplier=int(rep_raw.get("subscription_multiplier", 2)),
             cooldown_days=int(rep_raw.get("cooldown_days", 7)),
             active_min_messages=int(rep_raw.get("active_min_messages", 20)),
             active_min_days=int(rep_raw.get("active_min_days", 14)),

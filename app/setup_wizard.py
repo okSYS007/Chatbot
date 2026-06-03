@@ -86,12 +86,15 @@ def _write_config(chat_id: int, admin_id: int, welcome_text: str) -> None:
         "reputation": {
             "enabled": True,
             "admin_only": True,
+            "points_per_admin_reaction": 1,
+            "subscription_bonus_enabled": False,
+            "subscription_multiplier": 2,
             "positive_reactions": ["👍", "❤️", "🔥"],
-            "cooldown_days": 7,
+            "cooldown_days": 0,
             "active_min_messages": 20,
             "active_min_days": 14,
             "regular_weight": 1,
-            "moderator_weight": 2,
+            "moderator_weight": 1,
             "moderators": [admin_id],
         },
         "storage": {

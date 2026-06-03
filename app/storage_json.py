@@ -88,6 +88,7 @@ class JsonStorage:
                 "likes_given": 0,
                 "is_moderator": False,
                 "is_blocked": False,
+                "subscription_active": False,
                 "welcomed": False,
             }
         else:
@@ -138,6 +139,29 @@ class JsonStorage:
         self.state["pending_reactions"] = []
         self.state["rep_events"] = []
         self.save()
+
+    def spend_reputation(self, user_id: int, amount: int, admin_id: int, reason: str) -> tuple[bool, int]:
+        user = self.get_user(user_id)
+        if not user:
+            return False, 0
+
+        current = int(user.get("reputation") or 0)
+        if amount <= 0 or current < amount:
+            return False, current
+
+        user["reputation"] = current - amount
+        self.state["rep_events"].append(
+            {
+                "at": utc_now(),
+                "admin_id": admin_id,
+                "author_id": user_id,
+                "weight": -amount,
+                "reason": reason or "crystal_exchange",
+            }
+        )
+        self.state["rep_events"] = self.state["rep_events"][-200:]
+        self.save()
+        return True, int(user["reputation"])
 
     def record_reputation(
         self,
