@@ -44,6 +44,10 @@ class JsonStorage:
         with self.path.open("r", encoding="utf-8") as file:
             return json.load(file)
 
+    def reload(self) -> None:
+        self.state = self._load()
+        self._migrate()
+
     def _migrate(self) -> None:
         base = default_state()
         for key, value in base.items():
@@ -141,6 +145,7 @@ class JsonStorage:
         self.save()
 
     def spend_reputation(self, user_id: int, amount: int, admin_id: int, reason: str) -> tuple[bool, int]:
+        self.reload()
         user = self.get_user(user_id)
         if not user:
             return False, 0
@@ -157,6 +162,44 @@ class JsonStorage:
                 "author_id": user_id,
                 "weight": -amount,
                 "reason": reason or "crystal_exchange",
+            }
+        )
+        self.state["rep_events"] = self.state["rep_events"][-200:]
+        self.save()
+        return True, int(user["reputation"])
+
+    def add_reputation(self, user_id: int, amount: int, admin_id: int, reason: str) -> tuple[bool, int]:
+        self.reload()
+        if amount <= 0:
+            user = self.get_user(user_id)
+            return False, int(user.get("reputation") or 0) if user else 0
+
+        user = self.state["users"].setdefault(
+            str(user_id),
+            {
+                "user_id": user_id,
+                "username": None,
+                "display_name": str(user_id),
+                "first_seen_at": utc_now(),
+                "last_seen_at": utc_now(),
+                "message_count": 0,
+                "reputation": 0,
+                "likes_received": 0,
+                "likes_given": 0,
+                "is_moderator": False,
+                "is_blocked": False,
+                "subscription_active": False,
+                "welcomed": False,
+            },
+        )
+        user["reputation"] = int(user.get("reputation") or 0) + amount
+        self.state["rep_events"].append(
+            {
+                "at": utc_now(),
+                "admin_id": admin_id,
+                "author_id": user_id,
+                "weight": amount,
+                "reason": reason or "manual_admin_add",
             }
         )
         self.state["rep_events"] = self.state["rep_events"][-200:]

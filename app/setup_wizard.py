@@ -149,7 +149,7 @@ async def _setup() -> None:
 
     print()
     print("Готово.")
-    print("Теперь можно запускать start_bot.bat.")
+    print("Теперь откроется админ-панель. Пока окно открыто, бот работает.")
 
 
 def run_setup_wizard() -> None:
