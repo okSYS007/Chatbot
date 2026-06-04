@@ -19,6 +19,10 @@ def _emoji_values(reactions: tuple[object, ...] | list[object]) -> set[str]:
     return values
 
 
+def reaction_key(chat_id: int, message_id: int, reactor_id: int, reaction: str) -> str:
+    return f"{chat_id}:{message_id}:{reactor_id}:{reaction}"
+
+
 async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not is_target_chat(update, context) or not update.message_reaction:
         return
@@ -35,10 +39,22 @@ async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     old_reactions = _emoji_values(event.old_reaction)
     new_reactions = _emoji_values(event.new_reaction)
     added = new_reactions - old_reactions
+    removed = old_reactions - new_reactions
+    if not added and not removed:
+        return
+
+    for reaction in removed:
+        storage.rollback_reputation_reaction(
+            reaction_key=reaction_key(event.chat.id, event.message_id, reactor.id, reaction),
+            reactor_id=reactor.id,
+            reason="reaction_removed",
+        )
+
     if not added:
         return
 
-    author_id = storage.state["message_authors"].get(f"{event.chat.id}:{event.message_id}")
+    state = storage.snapshot()
+    author_id = state.get("message_authors", {}).get(f"{event.chat.id}:{event.message_id}")
     if not author_id:
         return
 
@@ -46,25 +62,26 @@ async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         if reaction not in config.reputation.positive_reactions:
             continue
 
-        reaction_key = f"{event.chat.id}:{event.message_id}:{reactor.id}"
+        key = reaction_key(event.chat.id, event.message_id, reactor.id, reaction)
         pair_key = f"{reactor.id}:{author_id}"
         decision = decide_reputation(
             storage.snapshot(),
             config.reputation,
-            trusted_reactor_ids=config.admins.user_ids | config.reputation.moderators,
+            trusted_reactor_ids=config.admins.user_ids,
             reactor_id=reactor.id,
             author_id=int(author_id),
             reaction=reaction,
-            reaction_key=reaction_key,
+            reaction_key=key,
         )
         if decision.accepted:
             storage.record_reputation(
                 reactor_id=reactor.id,
                 author_id=int(author_id),
-                reaction_key=reaction_key,
+                reaction_key=key,
                 pair_key=pair_key,
+                reaction=reaction,
                 weight=decision.weight,
                 reason=decision.reason,
             )
         else:
-            storage.record_counted_reaction(reaction_key, decision.reason)
+            storage.record_counted_reaction(key, decision.reason)

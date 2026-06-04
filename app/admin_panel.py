@@ -6,7 +6,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, simpledialog, ttk
 
-from app.config import AppConfig, load_config
+from app.config import AppConfig, load_config, save_admin_user_ids, save_reputation_reactions
 from app.setup_wizard import run_setup_wizard
 from app.storage import JsonStorage
 
@@ -35,6 +35,8 @@ class AdminPanel:
         ttk.Button(toolbar, text="Обновить", command=self.refresh_users).pack(side=tk.LEFT)
         ttk.Button(toolbar, text="Начислить репутацию", command=self.add_reputation).pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(toolbar, text="Списать кристаллы", command=self.spend_crystals).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(toolbar, text="Реакции", command=self.edit_reactions).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(toolbar, text="Добавить админа", command=self.add_admin).pack(side=tk.LEFT, padx=(6, 0))
         ttk.Button(toolbar, text="Перезапустить бота", command=self.relaunch_bot).pack(side=tk.LEFT, padx=(18, 0))
 
         ttk.Label(toolbar, textvariable=self.status_var).pack(side=tk.RIGHT)
@@ -175,6 +177,76 @@ class AdminPanel:
             return
         self.refresh_users()
         messagebox.showinfo("Списать кристаллы", f"Списано: {amount}. Новый баланс: {balance}")
+
+    def add_admin(self) -> None:
+        user_id = self.ask_user_id()
+        if not user_id:
+            return
+
+        fresh_config = load_config()
+        admins = set(fresh_config.admins.user_ids)
+        if user_id in admins:
+            messagebox.showinfo("Админы", "Этот user_id уже есть в админском списке.")
+            return
+
+        admins.add(user_id)
+        save_admin_user_ids(admins)
+        self.config = load_config()
+        self.relaunch_bot()
+        messagebox.showinfo(
+            "Админы",
+            f"User ID {user_id} добавлен в админский список. Бот перезапущен.",
+        )
+
+    def edit_reactions(self) -> None:
+        window = tk.Toplevel(self.root)
+        window.title("Репутационные реакции")
+        window.geometry("320x360")
+        window.transient(self.root)
+        window.grab_set()
+
+        frame = ttk.Frame(window, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(frame, text="Белый список реакций").pack(anchor=tk.W)
+        reactions = tk.Listbox(frame, height=8)
+        reactions.pack(fill=tk.BOTH, expand=True, pady=(6, 8))
+        for reaction in self.config.reputation.positive_reactions:
+            reactions.insert(tk.END, reaction)
+
+        entry = ttk.Entry(frame)
+        entry.pack(fill=tk.X)
+
+        buttons = ttk.Frame(frame)
+        buttons.pack(fill=tk.X, pady=(8, 0))
+
+        def add_reaction() -> None:
+            reaction = entry.get().strip()
+            if not reaction:
+                return
+            current = set(reactions.get(0, tk.END))
+            if reaction not in current:
+                reactions.insert(tk.END, reaction)
+            entry.delete(0, tk.END)
+
+        def remove_reaction() -> None:
+            for index in reversed(reactions.curselection()):
+                reactions.delete(index)
+
+        def save_reactions() -> None:
+            values = [str(value).strip() for value in reactions.get(0, tk.END) if str(value).strip()]
+            if not values:
+                messagebox.showerror("Реакции", "В списке должна быть хотя бы одна реакция.", parent=window)
+                return
+            save_reputation_reactions(values)
+            self.config = load_config()
+            window.destroy()
+            self.relaunch_bot()
+            messagebox.showinfo("Реакции", "Список реакций сохранен, бот перезапущен.")
+
+        ttk.Button(buttons, text="Добавить", command=add_reaction).pack(side=tk.LEFT)
+        ttk.Button(buttons, text="Удалить", command=remove_reaction).pack(side=tk.LEFT, padx=(6, 0))
+        ttk.Button(buttons, text="Сохранить", command=save_reactions).pack(side=tk.RIGHT)
 
     def close(self) -> None:
         self._terminate_bot_process()

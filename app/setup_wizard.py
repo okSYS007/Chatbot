@@ -95,7 +95,7 @@ def _write_config(chat_id: int, admin_id: int, welcome_text: str) -> None:
             "active_min_days": 14,
             "regular_weight": 1,
             "moderator_weight": 1,
-            "moderators": [admin_id],
+            "moderators": [],
         },
         "storage": {
             "path": "data/state.json",

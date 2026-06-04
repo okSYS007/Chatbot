@@ -49,12 +49,18 @@ class JsonStorage:
         self._migrate()
 
     def _migrate(self) -> None:
+        changed = False
         base = default_state()
         for key, value in base.items():
-            self.state.setdefault(key, value)
+            if key not in self.state:
+                self.state[key] = value
+                changed = True
         for key, value in base["meta"].items():
-            self.state["meta"].setdefault(key, value)
-        self.save()
+            if key not in self.state["meta"]:
+                self.state["meta"][key] = value
+                changed = True
+        if changed:
+            self.save()
 
     def save(self) -> None:
         tmp_path = self.path.with_suffix(self.path.suffix + ".tmp")
@@ -69,6 +75,7 @@ class JsonStorage:
         os.replace(tmp_path, self.path)
 
     def remember_update(self, update_id: int) -> None:
+        self.reload()
         if update_id > int(self.state["meta"].get("last_update_id") or 0):
             self.state["meta"]["last_update_id"] = update_id
             self.state["meta"]["last_seen_update_at"] = utc_now()
@@ -103,9 +110,11 @@ class JsonStorage:
         return users[key]
 
     def get_user(self, user_id: int) -> dict[str, Any] | None:
+        self.reload()
         return self.state["users"].get(str(user_id))
 
     def increment_message_count(self, telegram_user: Any, message_key: str | None = None) -> None:
+        self.reload()
         user = self.ensure_user(telegram_user)
         user["message_count"] = int(user.get("message_count") or 0) + 1
         if message_key:
@@ -113,6 +122,7 @@ class JsonStorage:
         self.save()
 
     def mark_welcomed(self, telegram_user: Any) -> bool:
+        self.reload()
         user = self.ensure_user(telegram_user)
         if user.get("welcomed"):
             self.save()
@@ -126,16 +136,20 @@ class JsonStorage:
         self.save()
 
     def snapshot(self) -> dict[str, Any]:
+        self.reload()
         return deepcopy(self.state)
 
     def get_setting(self, key: str, default: Any = None) -> Any:
+        self.reload()
         return self.state.get("settings", {}).get(key, default)
 
     def set_setting(self, key: str, value: Any) -> None:
+        self.reload()
         self.state.setdefault("settings", {})[key] = value
         self.save()
 
     def reset_user_data(self) -> None:
+        self.reload()
         self.state["users"] = {}
         self.state["rep_cooldowns"] = {}
         self.state["counted_reactions"] = {}
@@ -212,9 +226,11 @@ class JsonStorage:
         author_id: int,
         reaction_key: str,
         pair_key: str,
+        reaction: str,
         weight: int,
         reason: str,
     ) -> None:
+        self.reload()
         now = utc_now()
         author = self.state["users"].setdefault(str(author_id), {"user_id": author_id})
         reactor = self.state["users"].setdefault(str(reactor_id), {"user_id": reactor_id})
@@ -222,7 +238,15 @@ class JsonStorage:
         author["reputation"] = int(author.get("reputation") or 0) + weight
         author["likes_received"] = int(author.get("likes_received") or 0) + 1
         reactor["likes_given"] = int(reactor.get("likes_given") or 0) + 1
-        self.state["counted_reactions"][reaction_key] = True
+        self.state["counted_reactions"][reaction_key] = {
+            "type": "reputation_grant",
+            "at": now,
+            "reactor_id": reactor_id,
+            "author_id": author_id,
+            "reaction": reaction,
+            "weight": weight,
+            "pair_key": pair_key,
+        }
         self.state["rep_cooldowns"][pair_key] = now
         self.state["rep_events"].append(
             {
@@ -230,6 +254,7 @@ class JsonStorage:
                 "reactor_id": reactor_id,
                 "author_id": author_id,
                 "reaction_key": reaction_key,
+                "reaction": reaction,
                 "weight": weight,
                 "reason": reason,
             }
@@ -237,6 +262,46 @@ class JsonStorage:
         self.state["rep_events"] = self.state["rep_events"][-200:]
         self.save()
 
+    def rollback_reputation_reaction(self, reaction_key: str, reactor_id: int, reason: str) -> tuple[bool, int]:
+        self.reload()
+        record = self.state.get("counted_reactions", {}).get(reaction_key)
+        if not isinstance(record, dict) or record.get("type") != "reputation_grant":
+            return False, 0
+        if int(record.get("reactor_id") or 0) != int(reactor_id):
+            return False, 0
+
+        author_id = int(record.get("author_id") or 0)
+        weight = int(record.get("weight") or 0)
+        if not author_id or weight <= 0:
+            return False, 0
+
+        author = self.state["users"].setdefault(str(author_id), {"user_id": author_id})
+        reactor = self.state["users"].setdefault(str(reactor_id), {"user_id": reactor_id})
+        author["reputation"] = int(author.get("reputation") or 0) - weight
+        author["likes_received"] = max(0, int(author.get("likes_received") or 0) - 1)
+        reactor["likes_given"] = max(0, int(reactor.get("likes_given") or 0) - 1)
+
+        pair_key = str(record.get("pair_key") or "")
+        if pair_key:
+            self.state["rep_cooldowns"].pop(pair_key, None)
+        self.state["counted_reactions"].pop(reaction_key, None)
+        self.state["rep_events"].append(
+            {
+                "at": utc_now(),
+                "reactor_id": reactor_id,
+                "author_id": author_id,
+                "reaction_key": reaction_key,
+                "reaction": record.get("reaction"),
+                "weight": -weight,
+                "reason": reason,
+                "rollback_of": reaction_key,
+            }
+        )
+        self.state["rep_events"] = self.state["rep_events"][-200:]
+        self.save()
+        return True, int(author["reputation"])
+
     def record_counted_reaction(self, reaction_key: str, reason: str) -> None:
-        self.state["counted_reactions"][reaction_key] = reason
+        self.reload()
+        self.state["counted_reactions"].setdefault(reaction_key, reason)
         self.save()

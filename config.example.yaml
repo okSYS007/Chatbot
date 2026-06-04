@@ -3,6 +3,8 @@ telegram:
   chat_id: 0
 
 admins:
+  # These user_ids can use / admin commands and their reactions give reputation.
+  # The bot also tries to add Telegram group admins here on startup.
   user_ids: []
 
 welcome:
@@ -11,12 +13,14 @@ welcome:
 
 reputation:
   enabled: true
-  # MVP mode: only admin/moderator reactions increase reputation.
+  # MVP mode: only reactions from admins.user_ids increase reputation.
   admin_only: true
   points_per_admin_reaction: 1
   # Reserved for future paid subscription logic.
   subscription_bonus_enabled: false
   subscription_multiplier: 2
+  # Admin reactions from this list give +1 reputation.
+  # Removing a counted reaction rolls this point back.
   positive_reactions:
     - "👍"
     - "❤️"

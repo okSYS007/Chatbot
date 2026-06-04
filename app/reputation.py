@@ -57,13 +57,10 @@ def decide_reputation(
         return ReputationDecision(False, reason="disabled")
     if reaction not in config.positive_reactions:
         return ReputationDecision(False, reason="not_positive")
-    if reactor_id == author_id:
-        return ReputationDecision(False, reason="self_like")
     if reaction_key in state.get("counted_reactions", {}):
         return ReputationDecision(False, reason="duplicate_reaction")
 
     users = state.get("users", {})
-    reactor = users.get(str(reactor_id))
     author = users.get(str(author_id))
     if not author:
         return ReputationDecision(False, reason="unknown_author")
@@ -74,13 +71,7 @@ def decide_reputation(
     if config.cooldown_days > 0 and last_pair_at and now - last_pair_at < timedelta(days=config.cooldown_days):
         return ReputationDecision(False, reason="cooldown")
 
-    if reactor_id in trusted_reactor_ids or reactor_id in config.moderators or (reactor and reactor.get("is_moderator")):
-        return ReputationDecision(True, weight=reputation_weight(author, config), reason="admin_reaction")
-
-    if config.admin_only:
+    if reactor_id not in trusted_reactor_ids:
         return ReputationDecision(False, reason="not_admin_reaction")
 
-    if is_active(reactor, config, now):
-        return ReputationDecision(True, weight=config.regular_weight, reason="active_user")
-
-    return ReputationDecision(False, reason="not_active")
+    return ReputationDecision(True, weight=reputation_weight(author, config), reason="admin_reaction")

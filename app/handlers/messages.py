@@ -22,7 +22,7 @@ async def reply_with_reputation(update: Update, context: ContextTypes.DEFAULT_TY
     storage = context.application.bot_data["storage"]
     user = storage.get_user(update.effective_user.id)
     reputation = int(user.get("reputation") or 0) if user else 0
-    await update.message.reply_text(f"Your reputation: {reputation}")
+    await update.message.reply_text(f"Ваша репутация: {reputation}")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
