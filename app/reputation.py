@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.config import ReputationConfig
+from app.config import ReputationConfig, normalize_reaction
 
 
 @dataclass(frozen=True)
@@ -55,7 +55,9 @@ def decide_reputation(
 ) -> ReputationDecision:
     if not config.enabled:
         return ReputationDecision(False, reason="disabled")
-    if reaction not in config.positive_reactions:
+    reaction = normalize_reaction(reaction)
+    positive_reactions = {normalize_reaction(item) for item in config.positive_reactions}
+    if reaction not in positive_reactions:
         return ReputationDecision(False, reason="not_positive")
     if reaction_key in state.get("counted_reactions", {}):
         return ReputationDecision(False, reason="duplicate_reaction")

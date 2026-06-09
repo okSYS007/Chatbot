@@ -1,21 +1,27 @@
 from __future__ import annotations
 
+import logging
+
 from telegram import ReactionTypeEmoji, Update
 from telegram.ext import ContextTypes
 
+from app.config import normalize_reaction
 from app.handlers.common import is_target_chat
 from app.reputation import decide_reputation
+
+
+logger = logging.getLogger(__name__)
 
 
 def _emoji_values(reactions: tuple[object, ...] | list[object]) -> set[str]:
     values: set[str] = set()
     for reaction in reactions:
         if isinstance(reaction, ReactionTypeEmoji):
-            values.add(reaction.emoji)
+            values.add(normalize_reaction(reaction.emoji))
         else:
             emoji = getattr(reaction, "emoji", None)
             if emoji:
-                values.add(str(emoji))
+                values.add(normalize_reaction(str(emoji)))
     return values
 
 
@@ -29,6 +35,11 @@ async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     event = update.message_reaction
     if not event.user:
+        logger.info(
+            "Реакция пропущена: Telegram не передал пользователя, chat_id=%s message_id=%s",
+            event.chat.id,
+            event.message_id,
+        )
         return
 
     storage = context.application.bot_data["storage"]
@@ -44,11 +55,28 @@ async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
 
     for reaction in removed:
-        storage.rollback_reputation_reaction(
+        rolled_back, new_reputation = storage.rollback_reputation_reaction(
             reaction_key=reaction_key(event.chat.id, event.message_id, reactor.id, reaction),
             reactor_id=reactor.id,
             reason="reaction_removed",
         )
+        if rolled_back:
+            logger.info(
+                "Репутация откатилась: reactor_id=%s reaction=%s chat_id=%s message_id=%s new_reputation=%s",
+                reactor.id,
+                reaction,
+                event.chat.id,
+                event.message_id,
+                new_reputation,
+            )
+        else:
+            logger.info(
+                "Откат реакции пропущен: ранее эта реакция не начисляла репутацию, reactor_id=%s reaction=%s chat_id=%s message_id=%s",
+                reactor.id,
+                reaction,
+                event.chat.id,
+                event.message_id,
+            )
 
     if not added:
         return
@@ -56,10 +84,23 @@ async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     state = storage.snapshot()
     author_id = state.get("message_authors", {}).get(f"{event.chat.id}:{event.message_id}")
     if not author_id:
+        logger.info(
+            "Реакция пропущена: бот не знает автора сообщения, reactor_id=%s reactions=%s chat_id=%s message_id=%s",
+            reactor.id,
+            sorted(added),
+            event.chat.id,
+            event.message_id,
+        )
         return
 
     for reaction in added:
         if reaction not in config.reputation.positive_reactions:
+            logger.info(
+                "Реакция пропущена: emoji нет в белом списке, reactor_id=%s reaction=%s allowed=%s",
+                reactor.id,
+                reaction,
+                list(config.reputation.positive_reactions),
+            )
             continue
 
         key = reaction_key(event.chat.id, event.message_id, reactor.id, reaction)
@@ -83,5 +124,18 @@ async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 weight=decision.weight,
                 reason=decision.reason,
             )
+            logger.info(
+                "Репутация начислена: author_id=%s reactor_id=%s reaction=%s weight=%s",
+                author_id,
+                reactor.id,
+                reaction,
+                decision.weight,
+            )
         else:
-            storage.record_counted_reaction(key, decision.reason)
+            logger.info(
+                "Реакция не начислила репутацию: reason=%s author_id=%s reactor_id=%s reaction=%s",
+                decision.reason,
+                author_id,
+                reactor.id,
+                reaction,
+            )

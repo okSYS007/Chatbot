@@ -59,6 +59,12 @@ class JsonStorage:
             if key not in self.state["meta"]:
                 self.state["meta"][key] = value
                 changed = True
+        counted_reactions = self.state.get("counted_reactions", {})
+        if isinstance(counted_reactions, dict):
+            for key, value in list(counted_reactions.items()):
+                if isinstance(value, str):
+                    counted_reactions.pop(key, None)
+                    changed = True
         if changed:
             self.save()
 

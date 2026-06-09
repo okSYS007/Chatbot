@@ -65,6 +65,17 @@ class AppConfig:
 DEFAULT_POSITIVE_REACTIONS = ("👍", "❤️", "🔥")
 
 
+def normalize_reaction(value: str) -> str:
+    return value.replace("\ufe0f", "").replace("\ufe0e", "")
+
+
+def _repair_mojibake(value: str) -> str:
+    try:
+        return value.encode("cp1251").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return value
+
+
 def _as_int_set(values: list[Any] | None) -> set[int]:
     return {int(value) for value in values or [] if str(value).strip()}
 
@@ -72,7 +83,7 @@ def _as_int_set(values: list[Any] | None) -> set[int]:
 def _clean_reactions(values: list[Any] | tuple[Any, ...] | set[Any] | None) -> list[str]:
     reactions: list[str] = []
     for value in values or []:
-        reaction = str(value).strip()
+        reaction = normalize_reaction(_repair_mojibake(str(value).strip()))
         if reaction and reaction not in reactions:
             reactions.append(reaction)
     return reactions
