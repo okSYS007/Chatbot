@@ -10,6 +10,25 @@ admins:
 welcome:
   enabled: true
   text: "Привет, {name}! Добро пожаловать в группу."
+  # Необязательный список. Сохранённые через команды приветствия имеют приоритет.
+  texts: []
+
+daily_card:
+  # Две папки сканируются рекурсивно; имена файлов могут быть произвольными.
+  enabled: false
+  images_folder: "cards/images"
+  texts_folder: "cards/texts"
+  # Для каждой фразы бот связывает случайную картинку со случайным текстом,
+  # в имени которых встречается эта фраза.
+  patterns:
+    - "8 пентаклей"
+    - "6 жезлов"
+    - "10 кубков"
+  chat_id: 0
+  # ID темы форума. null — основной чат.
+  message_thread_id: null
+  time: "09:00"
+  timezone: "Europe/Kyiv"
 
 reputation:
   enabled: true

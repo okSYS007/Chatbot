@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
 from app.config import load_config, save_reputation_reactions
 from app.handlers.common import is_admin
-from app.welcome import get_welcome_text, render_welcome
+from app.welcome import get_welcome_text, render_welcome, validate_welcome_templates
+
+logger = logging.getLogger(__name__)
 
 
 async def health(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -105,8 +109,27 @@ async def set_welcome(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     storage = context.application.bot_data["storage"]
-    storage.set_setting("welcome_text", text)
+    storage.set_settings({"welcome_text": text, "welcome_texts": []})
+    logger.info("welcome template updated by admin_id=%s", update.effective_user.id if update.effective_user else None)
     await update.effective_message.reply_text("Текст приветствия обновлен.")
+
+
+async def set_welcomes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_admin(update, context):
+        return
+
+    raw = " ".join(context.args).strip()
+    templates, error = validate_welcome_templates(raw.split("|")) if raw else ([], "Список приветствий не может быть пустым.")
+    if error:
+        await update.effective_message.reply_text(
+            error + "\nФормат: /set_welcomes Привет, {name}! | Рады видеть, {username}!"
+        )
+        return
+
+    storage = context.application.bot_data["storage"]
+    storage.set_settings({"welcome_texts": templates})
+    logger.info("welcome templates updated count=%s by admin_id=%s", len(templates), update.effective_user.id if update.effective_user else None)
+    await update.effective_message.reply_text(f"Список приветствий обновлен. Вариантов: {len(templates)}.")
 
 
 async def reset_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -59,12 +59,7 @@ class JsonStorage:
             if key not in self.state["meta"]:
                 self.state["meta"][key] = value
                 changed = True
-        counted_reactions = self.state.get("counted_reactions", {})
-        if isinstance(counted_reactions, dict):
-            for key, value in list(counted_reactions.items()):
-                if isinstance(value, str):
-                    counted_reactions.pop(key, None)
-                    changed = True
+        # Preserve legacy reaction markers and unknown fields during upgrades.
         if changed:
             self.save()
 
@@ -150,8 +145,11 @@ class JsonStorage:
         return self.state.get("settings", {}).get(key, default)
 
     def set_setting(self, key: str, value: Any) -> None:
+        self.set_settings({key: value})
+
+    def set_settings(self, values: dict[str, Any]) -> None:
         self.reload()
-        self.state.setdefault("settings", {})[key] = value
+        self.state.setdefault("settings", {}).update(values)
         self.save()
 
     def reset_user_data(self) -> None:

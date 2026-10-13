@@ -16,6 +16,7 @@ from telegram.ext import (
 )
 
 from app.config import load_config, save_admin_user_ids
+from app.daily_card_runtime import start_daily_cards, stop_daily_cards
 from app.handlers.admin import (
     health,
     rep,
@@ -24,11 +25,13 @@ from app.handlers.admin import (
     rep_reactions,
     reset_users,
     set_welcome,
+    set_welcomes,
     spend_rep,
     test_welcome,
     top_rep,
 )
 from app.handlers.common import remember_update
+from app.handlers.daily_card import daily_card_here, daily_card_preview, daily_card_publish, daily_card_status
 from app.handlers.members import handle_chat_member
 from app.handlers.messages import handle_message
 from app.handlers.reactions import handle_reaction
@@ -84,6 +87,11 @@ def setup_logging(log_path) -> None:
     )
 
 
+async def initialize_bot(application) -> None:
+    await sync_group_admins(application)
+    await start_daily_cards(application)
+
+
 def build_application():
     config = load_config()
     setup_logging(config.logging.path)
@@ -91,7 +99,10 @@ def build_application():
     storage = JsonStorage(config.storage.path)
     storage.set_started()
 
-    application = ApplicationBuilder().token(config.telegram.token).post_init(sync_group_admins).build()
+    application = (
+        ApplicationBuilder().token(config.telegram.token)
+        .post_init(initialize_bot).post_stop(stop_daily_cards).post_shutdown(stop_daily_cards).build()
+    )
     application.bot_data["config"] = config
     application.bot_data["storage"] = storage
 
@@ -101,6 +112,11 @@ def build_application():
     application.add_handler(CommandHandler("rep", rep))
     application.add_handler(CommandHandler("test_welcome", test_welcome))
     application.add_handler(CommandHandler("set_welcome", set_welcome))
+    application.add_handler(CommandHandler("set_welcomes", set_welcomes))
+    application.add_handler(CommandHandler("daily_card_status", daily_card_status))
+    application.add_handler(CommandHandler("daily_card_here", daily_card_here))
+    application.add_handler(CommandHandler("daily_card_preview", daily_card_preview))
+    application.add_handler(CommandHandler("daily_card_publish", daily_card_publish))
     application.add_handler(CommandHandler("reset_users", reset_users))
     application.add_handler(CommandHandler("spend_rep", spend_rep))
     application.add_handler(CommandHandler("rep_reactions", rep_reactions))

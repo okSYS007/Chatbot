@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_data_files
 
 
 block_cipher = None
@@ -10,7 +11,7 @@ a = Analysis(
     ["main.py"],
     pathex=[str(project_root)],
     binaries=[],
-    datas=[],
+    datas=collect_data_files("tzdata"),
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

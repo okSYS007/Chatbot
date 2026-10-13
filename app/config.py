@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import os
+import re
+import string
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 from dotenv import load_dotenv
+
+from app.card_matching import validate_patterns
 
 
 @dataclass(frozen=True)
@@ -24,6 +29,25 @@ class AdminConfig:
 class WelcomeConfig:
     enabled: bool
     text: str
+    texts: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DailyCardConfig:
+    enabled: bool = False
+    folder: Path = Path("cards/day")
+    chat_id: int = 0
+    message_thread_id: int | None = None
+    time: str = "09:00"
+    timezone: str = "Europe/Kyiv"
+    caption: str = "Карта дня: {name}"
+    images_folder: Path | None = None
+    texts_folder: Path | None = None
+    patterns: tuple[str, ...] = ()
+
+    @property
+    def uses_patterns(self) -> bool:
+        return self.images_folder is not None or self.texts_folder is not None or bool(self.patterns)
 
 
 @dataclass(frozen=True)
@@ -60,6 +84,7 @@ class AppConfig:
     reputation: ReputationConfig
     storage: StorageConfig
     logging: LoggingConfig
+    daily_card: DailyCardConfig = field(default_factory=DailyCardConfig)
 
 
 DEFAULT_POSITIVE_REACTIONS = ("👍", "❤️", "🔥")
@@ -98,7 +123,105 @@ def _read_yaml_config(path: str = "config.yaml") -> dict[str, Any]:
         return {}
 
     with config_path.open("r", encoding="utf-8") as file:
-        return yaml.safe_load(file) or {}
+        raw = yaml.safe_load(file) or {}
+    if not isinstance(raw, dict):
+        raise ValueError("Конфигурация должна быть YAML-словарём.")
+    return raw
+
+
+def _write_yaml_config(raw: dict[str, Any], path: str) -> None:
+    config_path = Path(path)
+    tmp_path = config_path.with_suffix(config_path.suffix + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as file:
+        file.write(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False))
+        file.flush()
+        os.fsync(file.fileno())
+    os.replace(tmp_path, config_path)
+
+
+def parse_daily_card(raw: dict[str, Any]) -> DailyCardConfig:
+    if not isinstance(raw, dict):
+        raise ValueError("daily_card должен быть YAML-словарём.")
+    enabled = raw.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ValueError("daily_card.enabled должен быть true или false.")
+    clock = str(raw.get("time", "09:00"))
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", clock):
+        raise ValueError("Время карты дня указывается в формате ЧЧ:ММ (00:00–23:59).")
+    timezone = str(raw.get("timezone", "Europe/Kyiv"))
+    try:
+        ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ValueError("Неизвестный часовой пояс. Пример: Europe/Kyiv.") from exc
+    try:
+        chat_id = int(raw.get("chat_id", 0) or 0)
+        topic_id = int(raw.get("message_thread_id", 0) or 0) or None
+    except (TypeError, ValueError) as exc:
+        raise ValueError("ID чата и темы должны быть целыми числами.") from exc
+    if topic_id is not None and topic_id < 1:
+        raise ValueError("ID темы должен быть положительным числом или пустым.")
+    if enabled and not chat_id:
+        raise ValueError("Перед включением карты дня укажите ID чата.")
+    new_keys = {"images_folder", "texts_folder", "patterns"}
+    new_mode = bool(new_keys.intersection(raw))
+    if new_mode:
+        image_value = raw.get("images_folder", "cards/images")
+        text_value = raw.get("texts_folder", "cards/texts")
+        if not isinstance(image_value, str) or not image_value.strip():
+            raise ValueError("Укажите папку с картинками карт дня.")
+        if not isinstance(text_value, str) or not text_value.strip():
+            raise ValueError("Укажите папку с текстами карт дня.")
+        pattern_values = raw.get("patterns", [])
+        if not isinstance(pattern_values, list):
+            raise ValueError("daily_card.patterns должен быть списком строк.")
+        try:
+            patterns = validate_patterns(pattern_values)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Некорректные шаблоны карт: {exc}") from exc
+        if enabled and not patterns:
+            raise ValueError("Перед включением карты дня добавьте хотя бы один шаблон.")
+        images_folder = Path(image_value.strip())
+        texts_folder = Path(text_value.strip())
+    else:
+        images_folder = texts_folder = None
+        patterns = ()
+
+    folder = raw.get("folder", "cards/day")
+    if not isinstance(folder, str):
+        raise ValueError("Папка с картами дня должна быть строкой.")
+    folder = folder.strip()
+    if not folder:
+        raise ValueError("Укажите папку с картами дня.")
+    caption = str(raw.get("caption", "Карта дня: {name}"))
+    try:
+        for _, name, spec, conversion in string.Formatter().parse(caption):
+            if name is not None and (name not in {"name", "date"} or spec or conversion):
+                raise ValueError("В подписи разрешены только {name} и {date}, без форматов.")
+    except ValueError as exc:
+        raise ValueError("Некорректная подпись карты: используйте {name} и {date}.") from exc
+    if len(caption.encode("utf-16-le")) // 2 > 1024:
+        raise ValueError("Подпись карты не должна превышать 1024 символа Telegram.")
+    return DailyCardConfig(
+        enabled=enabled,
+        folder=Path(folder),
+        chat_id=chat_id,
+        message_thread_id=topic_id,
+        time=clock,
+        timezone=timezone,
+        caption=caption,
+        images_folder=images_folder,
+        texts_folder=texts_folder,
+        patterns=patterns,
+    )
+
+
+def save_daily_card(values: dict[str, Any], path: str = "config.yaml") -> DailyCardConfig:
+    raw = _read_yaml_config(path)
+    section = {**raw.get("daily_card", {}), **values}
+    config = parse_daily_card(section)
+    raw["daily_card"] = section
+    _write_yaml_config(raw, path)
+    return config
 
 
 def save_reputation_reactions(reactions: list[str] | tuple[str, ...], path: str = "config.yaml") -> list[str]:
@@ -108,10 +231,7 @@ def save_reputation_reactions(reactions: list[str] | tuple[str, ...], path: str 
 
     raw = _read_yaml_config(path)
     raw.setdefault("reputation", {})["positive_reactions"] = cleaned
-    Path(path).write_text(
-        yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
-    )
+    _write_yaml_config(raw, path)
     return cleaned
 
 
@@ -122,10 +242,7 @@ def save_admin_user_ids(user_ids: list[int] | tuple[int, ...] | set[int], path: 
 
     raw = _read_yaml_config(path)
     raw.setdefault("admins", {})["user_ids"] = cleaned
-    Path(path).write_text(
-        yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
-    )
+    _write_yaml_config(raw, path)
     return cleaned
 
 
@@ -145,6 +262,9 @@ def load_config(path: str = "config.yaml") -> AppConfig:
     rep_raw = raw.get("reputation", {})
     storage_raw = raw.get("storage", {})
     logging_raw = raw.get("logging", {})
+    welcome_texts = welcome_raw.get("texts", []) or []
+    if not isinstance(welcome_texts, list) or any(not isinstance(text, str) or not text.strip() for text in welcome_texts):
+        raise ValueError("welcome.texts должен быть списком непустых строк.")
 
     return AppConfig(
         telegram=TelegramConfig(token=token, chat_id=chat_id),
@@ -152,6 +272,7 @@ def load_config(path: str = "config.yaml") -> AppConfig:
         welcome=WelcomeConfig(
             enabled=bool(welcome_raw.get("enabled", True)),
             text=str(welcome_raw.get("text", "Привет, {name}! Добро пожаловать в группу.")),
+            texts=tuple(welcome_texts),
         ),
         reputation=ReputationConfig(
             enabled=bool(rep_raw.get("enabled", True)),
@@ -169,4 +290,5 @@ def load_config(path: str = "config.yaml") -> AppConfig:
         ),
         storage=StorageConfig(path=Path(storage_raw.get("path", "data/state.json"))),
         logging=LoggingConfig(path=Path(logging_raw.get("path", "logs/bot.log"))),
+        daily_card=parse_daily_card(raw.get("daily_card", {})),
     )

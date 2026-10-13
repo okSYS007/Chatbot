@@ -10,3 +10,13 @@ build/
 dist/
 release/
 .release_keep/
+.venv/
+.venv-build/
+.cache/
+work/
+outputs/
+data/daily_cards/
+cards/day/*
+!cards/day/README.md
+cards/images/
+cards/texts/

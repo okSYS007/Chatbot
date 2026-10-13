@@ -1,3 +1,4 @@
 python-telegram-bot==22.7
 python-dotenv>=1.1.1
 PyYAML>=6.0.2
+tzdata>=2025.2

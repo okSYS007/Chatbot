@@ -7,7 +7,7 @@ from pathlib import Path
 from tkinter import messagebox, simpledialog, ttk
 
 from app.config import AppConfig, load_config, save_admin_user_ids, save_reputation_reactions
-from app.setup_wizard import run_setup_wizard
+from app.settings_panel import edit_daily_card, edit_welcomes
 from app.storage import JsonStorage
 
 
@@ -40,6 +40,11 @@ class AdminPanel:
         ttk.Button(toolbar, text="Перезапустить бота", command=self.relaunch_bot).pack(side=tk.LEFT, padx=(18, 0))
 
         ttk.Label(toolbar, textvariable=self.status_var).pack(side=tk.RIGHT)
+
+        settings_toolbar = ttk.Frame(self.root, padding=(10, 0, 10, 10))
+        settings_toolbar.pack(fill=tk.X)
+        ttk.Button(settings_toolbar, text="Приветствия", command=lambda: edit_welcomes(self)).pack(side=tk.LEFT)
+        ttk.Button(settings_toolbar, text="Карта дня", command=lambda: edit_daily_card(self)).pack(side=tk.LEFT, padx=6)
 
         columns = ("user_id", "name", "username", "reputation", "messages", "subscription")
         self.users = ttk.Treeview(self.root, columns=columns, show="headings")
@@ -256,9 +261,13 @@ class AdminPanel:
 def run_admin_panel() -> None:
     try:
         config = load_config()
-    except Exception:
-        run_setup_wizard()
-        config = load_config()
+    except (ValueError, RuntimeError, OSError) as exc:
+        # An invalid new option must never trigger an overwrite of existing settings.
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("Ошибка настроек", f"Проверьте config.yaml и .env.\n{exc}\nСуществующие файлы не изменены.")
+        root.destroy()
+        return
 
     config.storage.path.parent.mkdir(parents=True, exist_ok=True)
     config.logging.path.parent.mkdir(parents=True, exist_ok=True)
